@@ -1,0 +1,30 @@
+name: POE Structure Check
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Docs Folder and Files
+        run: |
+          echo "Checking for /docs directory..."
+          test -d docs || (echo "Missing /docs folder" && exit 1)
+
+          echo "Checking for ERD..."
+          test -f docs/erd.png || test -f docs/erd.pdf || (echo "Missing ERD in docs/" && exit 1)
+
+          echo "Checking for API Endpoint Plan..."
+          test -f docs/api-plan.md || test -f docs/api-plan.pdf || (echo "Missing docs/api-plan.md" && exit 1)
+
+          echo "Checking for SQL Schema Script..."
+          test -f docs/schema.sql || (echo "Missing docs/schema.sql" && exit 1)
+
+          echo "All Part 1 planning artifacts verified successfully!"
