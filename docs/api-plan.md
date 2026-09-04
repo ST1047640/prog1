@@ -1,5 +1,4 @@
 # RaceDay RESTful API Endpoint Plan
-
 | HTTP method | Route | Description | Role required | Request body | Expected response |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | POST | /api/auth/register | Registers a new Organiser or Participant user account. | None (public) | { fullName, email, password, role } | 201 Created - user profile object<br>400 Bad Request - validation error<br>409 Conflict - email already exists |
