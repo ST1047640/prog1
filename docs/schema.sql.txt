@@ -1,0 +1,173 @@
+-- =======================================================
+-- RaceDay Database Schema & Seed Data Script
+-- Module: PROG6212 Portfolio of Evidence (Part 1)
+-- =======================================================
+
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'RaceDayDb')
+BEGIN
+    CREATE DATABASE RaceDayDb;
+END
+GO
+
+USE RaceDayDb;
+GO
+
+-- Drop tables in reverse order of foreign key dependencies
+IF OBJECT_ID('Results', 'U') IS NOT NULL DROP TABLE Results;
+IF OBJECT_ID('Enrolments', 'U') IS NOT NULL DROP TABLE Enrolments;
+IF OBJECT_ID('RouteDetails', 'U') IS NOT NULL DROP TABLE RouteDetails;
+IF OBJECT_ID('Categories', 'U') IS NOT NULL DROP TABLE Categories;
+IF OBJECT_ID('Events', 'U') IS NOT NULL DROP TABLE Events;
+IF OBJECT_ID('Users', 'U') IS NOT NULL DROP TABLE Users;
+GO
+
+-- 1. Users Table
+CREATE TABLE Users (
+    UserId INT IDENTITY(1,1) NOT NULL,
+    FullName NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(150) NOT NULL,
+    PasswordHash NVARCHAR(255) NOT NULL,
+    Role NVARCHAR(20) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_Users PRIMARY KEY CLUSTERED (UserId),
+    CONSTRAINT UQ_Users_Email UNIQUE (Email),
+    CONSTRAINT CK_Users_Role CHECK (Role IN ('Organiser', 'Participant'))
+);
+GO
+
+-- 2. Events Table
+CREATE TABLE Events (
+    EventId INT IDENTITY(1,1) NOT NULL,
+    OrganiserId INT NOT NULL,
+    Title NVARCHAR(150) NOT NULL,
+    Description NVARCHAR(MAX) NOT NULL,
+    EventDate DATETIME2 NOT NULL,
+    Location NVARCHAR(150) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_Events PRIMARY KEY CLUSTERED (EventId),
+    CONSTRAINT FK_Events_Users FOREIGN KEY (OrganiserId) 
+        REFERENCES Users(UserId) ON DELETE NO ACTION
+);
+GO
+
+-- 3. Categories Table
+CREATE TABLE Categories (
+    CategoryId INT IDENTITY(1,1) NOT NULL,
+    EventId INT NOT NULL,
+    CategoryName NVARCHAR(80) NOT NULL,
+    DistanceKm DECIMAL(5,2) NOT NULL,
+    EntryFee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    MaxParticipants INT NOT NULL,
+    CONSTRAINT PK_Categories PRIMARY KEY CLUSTERED (CategoryId),
+    CONSTRAINT FK_Categories_Events FOREIGN KEY (EventId) 
+        REFERENCES Events(EventId) ON DELETE CASCADE,
+    CONSTRAINT CK_Categories_Distance CHECK (DistanceKm > 0),
+    CONSTRAINT CK_Categories_Fee CHECK (EntryFee >= 0),
+    CONSTRAINT CK_Categories_Capacity CHECK (MaxParticipants > 0)
+);
+GO
+
+-- 4. Route Details Table
+CREATE TABLE RouteDetails (
+    RouteId INT IDENTITY(1,1) NOT NULL,
+    EventId INT NOT NULL,
+    StartLatitude DECIMAL(9,6) NOT NULL,
+    StartLongitude DECIMAL(9,6) NOT NULL,
+    ElevationGainMeters INT NOT NULL DEFAULT 0,
+    MapRouteUrl NVARCHAR(255) NULL,
+    CONSTRAINT PK_RouteDetails PRIMARY KEY CLUSTERED (RouteId),
+    CONSTRAINT UQ_RouteDetails_EventId UNIQUE (EventId),
+    CONSTRAINT FK_RouteDetails_Events FOREIGN KEY (EventId) 
+        REFERENCES Events(EventId) ON DELETE CASCADE
+);
+GO
+
+-- 5. Enrolments Table
+CREATE TABLE Enrolments (
+    EnrolmentId INT IDENTITY(1,1) NOT NULL,
+    UserId INT NOT NULL,
+    CategoryId INT NOT NULL,
+    EnrolmentDate DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    Status NVARCHAR(20) NOT NULL DEFAULT 'Confirmed',
+    BibNumber INT NULL,
+    CONSTRAINT PK_Enrolments PRIMARY KEY CLUSTERED (EnrolmentId),
+    CONSTRAINT FK_Enrolments_Users FOREIGN KEY (UserId) 
+        REFERENCES Users(UserId) ON DELETE NO ACTION,
+    CONSTRAINT FK_Enrolments_Categories FOREIGN KEY (CategoryId) 
+        REFERENCES Categories(CategoryId) ON DELETE CASCADE,
+    CONSTRAINT UQ_User_Category_Enrolment UNIQUE (UserId, CategoryId),
+    CONSTRAINT CK_Enrolments_Status CHECK (Status IN ('Confirmed', 'Cancelled', 'Pending'))
+);
+GO
+
+-- 6. Results Table
+CREATE TABLE Results (
+    ResultId INT IDENTITY(1,1) NOT NULL,
+    EnrolmentId INT NOT NULL,
+    FinishTime TIME(0) NOT NULL,
+    OverallRank INT NOT NULL,
+    RecordedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_Results PRIMARY KEY CLUSTERED (ResultId),
+    CONSTRAINT UQ_Results_Enrolment UNIQUE (EnrolmentId),
+    CONSTRAINT FK_Results_Enrolments FOREIGN KEY (EnrolmentId) 
+        REFERENCES Enrolments(EnrolmentId) ON DELETE CASCADE,
+    CONSTRAINT CK_Results_Rank CHECK (OverallRank > 0)
+);
+GO
+
+-- Non-clustered indexes for foreign key performance
+CREATE NONCLUSTERED INDEX IX_Events_OrganiserId ON Events(OrganiserId);
+CREATE NONCLUSTERED INDEX IX_Categories_EventId ON Categories(EventId);
+CREATE NONCLUSTERED INDEX IX_Enrolments_UserId ON Enrolments(UserId);
+CREATE NONCLUSTERED INDEX IX_Enrolments_CategoryId ON Enrolments(CategoryId);
+GO
+
+-- =======================================================
+-- Seed Data: 2 Organisers, 2 Participants, 3 Events & Categories
+-- =======================================================
+
+INSERT INTO Users (FullName, Email, PasswordHash, Role)
+VALUES 
+('Sipho Sithole', 'sipho@athleticsevents.co.za', 'AQAAAAEAACcQAAAAEPB4...', 'Organiser'),
+('Anika Van Zyl', 'anika@capetowncycling.org', 'AQAAAAEAACcQAAAAEJC6...', 'Organiser'),
+('Kagiso Dlamini', 'kagiso.runner@gmail.com', 'AQAAAAEAACcQAAAAEF12...', 'Participant'),
+('Lerato Mokoena', 'lerato.mokoena@outlook.com', 'AQAAAAEAACcQAAAAEL89...', 'Participant');
+GO
+
+INSERT INTO Events (OrganiserId, Title, Description, EventDate, Location)
+VALUES
+(1, 'Soweto Marathon 2026', 'The Peoples Race through historical Soweto.', '2026-11-01 06:00:00', 'FNB Stadium, Johannesburg'),
+(2, 'Cape Town Cycle Tour 2027', 'Iconic cycling route around the peninsula.', '2027-03-14 06:15:00', 'Grand Parade, Cape Town'),
+(1, 'Durban Promenade 10k Walk', 'Sunrise fitness walk on the golden mile.', '2026-12-05 07:00:00', 'North Beach, Durban');
+GO
+
+INSERT INTO Categories (EventId, CategoryName, DistanceKm, EntryFee, MaxParticipants)
+VALUES
+(1, 'Full Marathon', 42.20, 380.00, 10000),
+(1, 'Half Marathon', 21.10, 280.00, 12000),
+(1, '10km Classic', 10.00, 180.00, 8000),
+(2, 'Standard Classic Tour', 109.00, 650.00, 35000),
+(2, 'Short Route Cycle', 42.00, 350.00, 5000),
+(3, '10km Promenade Walk', 10.00, 120.00, 3000),
+(3, '5km Family Fun Walk', 5.00, 80.00, 2000);
+GO
+
+INSERT INTO RouteDetails (EventId, StartLatitude, StartLongitude, ElevationGainMeters, MapRouteUrl)
+VALUES
+(1, -26.234800, 27.982400, 420, 'https://routes.raceday.co.za/soweto42.gpx'),
+(2, -33.924900, 18.424100, 1220, 'https://routes.raceday.co.za/capetown109.gpx'),
+(3, -29.851900, 31.037100, 25, 'https://routes.raceday.co.za/durban10.gpx');
+GO
+
+INSERT INTO Enrolments (UserId, CategoryId, EnrolmentDate, Status, BibNumber)
+VALUES
+(3, 1, '2026-08-01 10:14:00', 'Confirmed', 10452),
+(4, 3, '2026-08-05 14:22:00', 'Confirmed', 30214),
+(3, 4, '2026-08-10 09:30:00', 'Confirmed', 5410);
+GO
+
+INSERT INTO Results (EnrolmentId, FinishTime, OverallRank)
+VALUES
+(1, '03:22:15', 142),
+(2, '00:54:10', 48);
+GO
