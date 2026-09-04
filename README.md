@@ -17,4 +17,4 @@ git commit -m "Remove unused variables and imports"
 git commit -m "Simplify conditional logic in main flow"
 git commit -m "Format code according to project style guide"
 git commit -m "Add unit tests for core methods"
-git commit -m "Final cleanup and preparation for release"
+![CI/CD Build](docs/cicd-build.png
